@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Development/Local
+.env
+.env.local
+session_storage.json
+summary_storage.json
+learning_progress.json
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Tests
+.pytest_cache/
+.coverage/
+htmlcov/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Local storage (will use GCS in production)
+uploads/*
+logs/*
+# 環境変数
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+.git/
+.gitignore
+
+# ログ（ローカル開発用）
+logs/*.json
+
+# その他
+README.md
+*.md
+.github/

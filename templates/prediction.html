@@ -1,0 +1,1136 @@
+{% extends "base.html" %}
+
+{% block title %}予想を立てよう{% endblock %}
+
+{% block content %}
+<div class="chat-page-vertical">
+    <div class="container-fluid h-100">
+        <div class="chat-section">
+            <div class="chat-header text-center mb-2 position-relative">
+                <div class="header-left-button">
+                    <button class="btn btn-secondary btn-sm" id="backToUnitHeaderButton" onclick="goBackToUnitSelection()">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        戻る
+                    </button>
+                </div>
+
+                <h2 class="mb-2">
+                    <i class="fas fa-lightbulb text-primary"></i>
+                    予想を立てよう
+                </h2>
+                <div class="unit-display">
+                    <span class="badge bg-primary fs-6">{{ unit }}</span>
+                </div>
+            </div>
+
+            <div class="task-section mb-2">
+                <div class="task-card">
+                    <h5 class="task-title">
+                        <i class="fas fa-seedling"></i>
+                        課題
+                    </h5>
+                    <p class="task-content">{{ task_content | replace('\n', '<br>') | safe }}</p>
+                </div>
+            </div>
+
+            <div class="chat-container">
+                <div class="api-status" id="apiStatus">
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="apiStatusMessage">AI接続を確認中...</span>
+                    </div>
+                </div>
+
+                <!-- 再テストボタンを削除（ユーザー要望） -->
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message ai-message">
+                        <div class="message-avatar"></div>
+                        <div class="message-content">
+                            {{ initial_ai_message }}
+                        </div>
+                    </div>
+                    
+                    <!-- 入力エリア（直接入力可能） -->
+                    <div class="message user-message user-input-area input-compact">
+                        <div class="user-input-wrapper">
+                            <div class="input-with-send">
+                                <textarea class="user-input-bubble placeholder-input" id="messageInput" placeholder="ここに入力してください"></textarea>
+                                <button class="send-button" id="sendButton" title="送信">
+                                    <i class="fas fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 不要な action-buttons 削除 -->
+            
+            <div class="summary-section" id="summarySection">
+                <div class="summary-card">
+                    <h5 class="summary-title">
+                        <i class="fas fa-lightbulb"></i>
+                        あなたの予想
+                    </h5>
+                    <div class="summary-content" id="summaryContent"></div>
+                    <!-- 単元選択に戻るボタン：予想まとめの下に配置 -->
+                    <div class="text-center mt-3">
+                        <button onclick="goBackToUnitSelection()" class="btn btn-primary btn-lg" id="backToUnitButton">
+                            <i class="fas fa-arrow-left me-2"></i>
+                            単元選択に戻る
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 下半分: 入力補助エリア -->
+        <div class="input-assist-section" id="inputAssistSection">
+            <div class="input-assist-header">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="mb-0">
+                        <i class="fas fa-edit"></i> 入力エリア
+                    </h5>
+                    
+                    <!-- ここにまとめるボタンを移動 -->
+                    <button class="btn btn-success btn-sm flex-grow-1 mx-4" id="summaryButton" onclick="getSummary()">
+                        <i class="fas fa-check me-2"></i>
+                        予想をまとめる
+                    </button>
+
+                    <div class="input-mode-switches">
+                        <div class="form-check form-switch d-inline-block me-3">
+                            <input class="form-check-input" type="checkbox" id="toggle50on">
+                            <label class="form-check-label" for="toggle50on">
+                                50音表
+                            </label>
+                        </div>
+                        <!-- 音声入力トグル（削除） -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 50音表キーボード -->
+            <div class="keyboard-area-fullscreen" id="keyboardArea">
+                <div class="touch-keyboard-panel" id="touchKeyboard">
+                    <div class="keyboard-grid-vertical" id="hiraganaKeys">
+                        <!-- JavaScriptで動的に生成 -->
+                    </div>
+                </div>
+            </div>
+            
+                <!-- 入力コントロールエリア -->
+            <div class="input-controls-area">
+                <!-- キーボードコントロールボタン -->
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning flex-fill" id="backspaceBtn">
+                        <i class="fas fa-backspace"></i> 消す
+                    </button>
+                    <button class="btn btn-danger flex-fill" id="clearBtn">
+                        <i class="fas fa-times"></i> 全消去
+                    </button>
+                </div>
+                <!-- 下部の重複したまとめボタンは削除（上部のボタンを使用） -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 予想完了情報をJSONとして埋め込み -->
+<script type="application/json" id="prediction-status">
+{
+    "prediction_summary_created": {{ prediction_summary_created | tojson | safe }},
+    "predictionSummary": {{ session.get('prediction_summary', '') | tojson | safe }}
+}
+</script>
+
+<script>
+// 音声入力は廃止（関連処理を削除）
+
+let conversationCount = 0;
+let lastMessage = '';
+
+// 予想完了状態を取得
+const predictionStatusElement = document.getElementById('prediction-status');
+const predictionStatus = predictionStatusElement ? JSON.parse(predictionStatusElement.textContent) : {prediction_summary_created: false};
+
+// URLからパラメータを取得
+const urlParams = new URLSearchParams(window.location.search);
+const classNumber = urlParams.get('class') || '1';
+const studentNumber = urlParams.get('number') || '1';
+const unit = urlParams.get('unit') || '';
+
+function showPredictionSummaryButton(reason) {
+    // まとめが完了している場合のみ非表示
+    if (predictionStatus && predictionStatus.prediction_summary_created) return;
+    const summaryButton = document.getElementById('summaryButton');
+    if (!summaryButton) return;
+    summaryButton.style.display = 'block';
+    summaryButton.disabled = false;  // ボタンを有効化
+    if (reason) {
+        console.log('【DEBUG】まとめボタン表示:', reason);
+    }
+}
+
+// ページロード時にまとめボタンを表示（ユーザーが任意のタイミングで押せるように）
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOMContentLoaded イベント発火');
+    
+    // 常に新規開始のため、localStorage のクリア
+    clearConversationLocalStorage();
+    
+    // まだまとめが完了していないなら、ボタンを表示
+    if (!predictionStatus || !predictionStatus.prediction_summary_created) {
+        const summaryButton = document.getElementById('summaryButton');
+        if (summaryButton) {
+            summaryButton.style.display = 'block';
+            summaryButton.disabled = false;
+        }
+    }
+    
+    // 予想のまとめが完了していれば復元
+    const hasExistingSummary = predictionStatus && (
+        predictionStatus.prediction_summary_created ||
+        (predictionStatus.predictionSummary && predictionStatus.predictionSummary.trim() !== '')
+    );
+    if (hasExistingSummary) {
+        console.log('予想のまとめが完了しています');
+        // サーバーから予想のまとめを取得
+        restorePredictionSummary();
+    }
+    
+    // 自動の API 再テストは行わない（ユーザー不要）
+    
+    // デフォルトで50音表がOFFなので、入力補助エリアを縮小
+    const inputAssistSection = document.getElementById('inputAssistSection');
+    if (inputAssistSection) {
+        inputAssistSection.classList.add('keyboard-off');
+    }
+    
+    // 入力補助の初期化
+    initializeInputAssist();
+    
+    // 入力モード切り替え
+    document.querySelectorAll('input[name="inputMode"]').forEach(radio => {
+        radio.addEventListener('change', switchInputMode);
+    });
+    
+    // 50音表表示切り替えスイッチ
+    const toggle50onSwitch = document.getElementById('toggle50on');
+    if (toggle50onSwitch) {
+        toggle50onSwitch.addEventListener('change', function() {
+            const keyboardArea = document.getElementById('keyboardArea');
+            const userInputArea = document.querySelector('.user-input-area');
+            const inputAssistSection = document.getElementById('inputAssistSection');
+            
+            if (this.checked) {
+                // 50音表を表示
+                keyboardArea.style.display = 'flex';
+                if (userInputArea) {
+                    userInputArea.classList.remove('keyboard-hidden', 'input-compact');
+                    userInputArea.classList.add('keyboard-shown', 'input-normal');
+                }
+                if (inputAssistSection) {
+                    inputAssistSection.classList.remove('keyboard-off');
+                    inputAssistSection.classList.add('keyboard-on');
+                }
+            } else {
+                // 50音表を非表示（入力エリア下降アニメーション + 縮小）
+                keyboardArea.style.display = 'none';
+                if (userInputArea) {
+                    userInputArea.classList.remove('keyboard-shown', 'input-normal');
+                    userInputArea.classList.add('keyboard-hidden', 'input-compact');
+                }
+                if (inputAssistSection) {
+                    inputAssistSection.classList.remove('keyboard-on');
+                    inputAssistSection.classList.add('keyboard-off');
+                }
+            }
+        });
+    }
+    
+    // 音声入力は廃止（トグル・ボタンは削除済み）
+    
+    // キーボードコントロールボタン（タッチキーボード用）
+    const backspaceBtn = document.getElementById('backspaceBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    
+    if (backspaceBtn) {
+        backspaceBtn.addEventListener('click', function() {
+            const input = document.getElementById('messageInput');
+            if (input.value.length > 0) {
+                input.value = input.value.slice(0, -1);
+            }
+            input.focus();
+        });
+    }
+    
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            const input = document.getElementById('messageInput');
+            input.value = '';
+            input.focus();
+        });
+    }
+    
+    // Enterキーで送信
+    document.getElementById('messageInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    
+    // 送信ボタン（チャット入力エリア）
+    const sendBtn = document.getElementById('sendButton');
+    if (sendBtn) {
+        sendBtn.addEventListener('click', sendMessage);
+    }
+    
+    // 送信ボタン（50音表エリア）
+    const inputAssistSendBtn = document.getElementById('inputAssistSendBtn');
+    if (inputAssistSendBtn) {
+        inputAssistSendBtn.addEventListener('click', sendMessage);
+    }
+    
+    // まとめボタン
+    const summaryBtn = document.getElementById('summaryButton');
+    if (summaryBtn) {
+        summaryBtn.addEventListener('click', getSummary);
+    }
+
+    // 入力欄にフォーカスが当たったらスクロールを調整
+    const inputEl = document.getElementById('messageInput');
+    if (inputEl) {
+        inputEl.addEventListener('focus', ensureInputVisible);
+    }
+
+    // リサイズ時にスクロールを調整（モバイルでキーボードが出たとき等）
+    window.addEventListener('resize', function() {
+        setTimeout(ensureInputVisible, 120);
+    });
+
+    // 50音表トグル時にも調整
+    const toggle50onSwitch2 = document.getElementById('toggle50on');
+    if (toggle50onSwitch2) {
+        toggle50onSwitch2.addEventListener('change', function() {
+            setTimeout(ensureInputVisible, 100);
+        });
+    }
+});
+
+// セッションオブジェクトの初期化（クライアント側のセッションデータ）
+let session = {
+    'prediction_summary': ''
+};
+
+// 入力補助用の設定（シンプルなひらがなのみ）
+const inputAssistConfig = {
+    hiragana: [
+        // 右から左への伝統的な50音表配置（縦書き）
+        ['わ', 'ら', 'や', 'ま', 'は', 'な', 'た', 'さ', 'か', 'あ'],
+        ['', 'り', '', 'み', 'ひ', 'に', 'ち', 'し', 'き', 'い'],
+        ['を', 'る', 'ゆ', 'む', 'ふ', 'ぬ', 'つ', 'す', 'く', 'う'],
+        ['', 'れ', '', 'め', 'へ', 'ね', 'て', 'せ', 'け', 'え'],
+        ['ん', 'ろ', 'よ', 'も', 'ほ', 'の', 'と', 'そ', 'こ', 'お'],
+        // 小さい文字と記号（左から右へ）
+        ['゛゜', 'っ', 'ゃ', 'ゅ', 'ょ', '、', '。', '！', '？', 'スペース']
+    ]
+};
+
+const currentUnit = "{{ unit }}";
+
+// 入力補助の初期化
+function initializeInputAssist() {
+    // ひらがなキーボードを設定（10列グリッドレイアウト、右から左）
+    const hiraganaContainer = document.getElementById('hiraganaKeys');
+    hiraganaContainer.innerHTML = '';
+    
+    inputAssistConfig.hiragana.forEach(row => {
+        row.forEach(char => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-primary touch-key';
+            if (char === '') {
+                // 空白セル
+                btn.style.visibility = 'hidden';
+                btn.textContent = ' ';
+            } else if (char === '゛゜') {
+                // 濁点・半濁点ボタン
+                btn.textContent = '゛゜';
+                btn.className = 'btn btn-outline-secondary touch-key special-key';
+                btn.onclick = () => addDakuten();
+            } else if (char === 'スペース') {
+                // スペースボタン
+                btn.textContent = 'スペース';
+                btn.className = 'btn btn-outline-info touch-key space-key';
+                btn.onclick = () => insertText(' ');
+            } else if (char === '、' || char === '。' || char === '！' || char === '？') {
+                // 記号ボタン
+                btn.textContent = char;
+                btn.className = 'btn btn-outline-secondary touch-key';
+                btn.onclick = () => insertText(char);
+            } else {
+                // 通常のひらがなボタン
+                btn.textContent = char;
+                btn.onclick = () => insertText(char);
+            }
+            hiraganaContainer.appendChild(btn);
+        });
+    });
+}
+
+// 濁点・半濁音を追加（循環対応）
+function addDakuten() {
+    const input = document.getElementById('messageInput');
+    const text = input.value;
+    if (text.length === 0) return;
+    
+    const lastChar = text[text.length - 1];
+    
+    // 濁点・半濁点の循環マップ（清音 → 濁音 → 半濁音 → 清音）
+    const dakutenCycleMap = {
+        // か行（清音 → 濁音 → 清音）
+        'か': 'が', 'が': 'か',
+        'き': 'ぎ', 'ぎ': 'き',
+        'く': 'ぐ', 'ぐ': 'く',
+        'け': 'げ', 'げ': 'け',
+        'こ': 'ご', 'ご': 'こ',
+        // さ行（清音 → 濁音 → 清音）
+        'さ': 'ざ', 'ざ': 'さ',
+        'し': 'じ', 'じ': 'し',
+        'す': 'ず', 'ず': 'す',
+        'せ': 'ぜ', 'ぜ': 'せ',
+        'そ': 'ぞ', 'ぞ': 'そ',
+        // た行（清音 → 濁音 → 清音）
+        'た': 'だ', 'だ': 'た',
+        'ち': 'ぢ', 'ぢ': 'ち',
+        'つ': 'づ', 'づ': 'つ',
+        'て': 'で', 'で': 'て',
+        'と': 'ど', 'ど': 'と',
+        // は行（清音 → 濁音 → 半濁音 → 清音）
+        'は': 'ば', 'ば': 'ぱ', 'ぱ': 'は',
+        'ひ': 'び', 'び': 'ぴ', 'ぴ': 'ひ',
+        'ふ': 'ぶ', 'ぶ': 'ぷ', 'ぷ': 'ふ',
+        'へ': 'べ', 'べ': 'ぺ', 'ぺ': 'へ',
+        'ほ': 'ぼ', 'ぼ': 'ぽ', 'ぽ': 'ほ'
+    };
+    
+    // 循環マップに存在すれば変換
+    if (dakutenCycleMap[lastChar]) {
+        input.value = text.slice(0, -1) + dakutenCycleMap[lastChar];
+    }
+    
+    updateInputPreview();  // プレビュー更新
+    input.focus();
+}
+
+// テキストを挿入（50音表から）
+function insertText(text) {
+    const input = document.getElementById('messageInput');
+    input.value += text;
+    input.focus();
+}
+
+// 入力補助の表示切り替え（音声関連は削除）
+function toggleInputAssist(enabled) {
+    const keyboardDiv = document.getElementById('touchKeyboard');
+    if (!keyboardDiv) return;
+    keyboardDiv.style.display = enabled ? 'block' : 'none';
+}
+
+// localStorage にセッション内の会話履歴を保存
+function saveConversationToLocalStorage(message, role) {
+    try {
+        const sessionKey = `conversation_${classNumber}_${studentNumber}_${unit}`;
+        let history = JSON.parse(localStorage.getItem(sessionKey) || '[]');
+        // 直前保存と重複している場合は保存をスキップ
+        const last = history.length ? history[history.length - 1] : null;
+        if (last && last.role === role && last.content === message) {
+            console.log('Skipping duplicate save to localStorage');
+        } else {
+            history.push({
+                role: role,
+                content: message,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        localStorage.setItem(sessionKey, JSON.stringify(history));
+        console.log('【DEBUG】会話履歴を localStorage に保存:', sessionKey, history.length, 'messages');
+    } catch (error) {
+        console.error('【ERROR】localStorage 保存エラー:', error);
+    }
+}
+
+// localStorage から会話履歴を復元
+function restoreConversationFromLocalStorage() {
+    try {
+        const sessionKey = `conversation_${classNumber}_${studentNumber}_${unit}`;
+        const history = JSON.parse(localStorage.getItem(sessionKey) || '[]');
+        
+        if (history.length === 0) {
+            console.log('【DEBUG】復元する会話履歴がありません');
+            return;
+        }
+        
+        console.log('【DEBUG】localStorage から会話履歴を復元:', history.length, 'messages');
+        
+        // チャットメッセージコンテナを取得
+        const messagesContainer = document.getElementById('chatMessages');
+        if (!messagesContainer) {
+            console.error('【ERROR】chatMessages コンテナが見つかりません');
+            return;
+        }
+        
+        // 既存のメッセージをクリア（入力エリアは保持）
+        const inputArea = messagesContainer.querySelector('.user-input-area');
+        messagesContainer.innerHTML = '';
+        if (inputArea) {
+            messagesContainer.appendChild(inputArea);
+        }
+        
+        // 復元された会話履歴を表示
+        history.forEach((msg, index) => {
+            const displayRole = msg.role === 'assistant' ? 'ai' : msg.role;
+            // タイピングエフェクトなしで復元（速度重視）
+            addMessage(msg.content, displayRole, false);
+            
+            // ユーザーメッセージをカウント
+            if (msg.role === 'user') {
+                conversationCount++;
+            }
+        });
+        
+        console.log('【DEBUG】会話履歴復元完了. conversationCount:', conversationCount);
+        
+        // スクロールを最下部に
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        // ユーザーメッセージ数に基づいてボタン表示判定
+        const totalMessages = conversationCount * 2;
+        if (totalMessages >= 6) {
+            showPredictionSummaryButton('復元時のメッセージ数確認');
+        }
+        
+    } catch (error) {
+        console.error('【ERROR】localStorage 復元エラー:', error);
+    }
+}
+
+// localStorage から会話履歴をクリア
+function clearConversationLocalStorage() {
+    try {
+        const sessionKey = `conversation_${classNumber}_${studentNumber}_${unit}`;
+        localStorage.removeItem(sessionKey);
+        console.log('【DEBUG】会話履歴をクリア:', sessionKey);
+    } catch (error) {
+        console.error('【ERROR】localStorage クリアエラー:', error);
+    }
+}
+
+function testApiConnection() {
+    fetch('/api/test')
+    .then(response => response.json())
+    .then(data => {
+        const statusDiv = document.getElementById('apiStatus');
+        const messageSpan = document.getElementById('apiStatusMessage');
+        
+        if (data.status === 'success') {
+            statusDiv.style.display = 'none';
+            console.log('API接続テスト成功:', data.response);
+        } else {
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'alert alert-danger';
+            messageSpan.textContent = data.message || 'AI接続に問題があります';
+        }
+    })
+    .catch(error => {
+        console.error('API接続テストエラー:', error);
+        const statusDiv = document.getElementById('apiStatus');
+        const messageSpan = document.getElementById('apiStatusMessage');
+        statusDiv.style.display = 'block';
+        statusDiv.className = 'alert alert-danger';
+        messageSpan.textContent = 'ネットワーク接続に問題があります';
+    });
+}
+
+function sendMessage() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    // 直前のユーザーメッセージと同じ内容なら送信しない
+    try {
+        const messagesContainer = document.getElementById('chatMessages');
+        const lastUserMsg = Array.from(messagesContainer.querySelectorAll('.message.user-message .message-content')).pop();
+        if (lastUserMsg && lastUserMsg.textContent.trim() === message) {
+            console.log('Duplicate user message suppressed:', message);
+            input.value = '';
+            input.focus();
+            return;
+        }
+    } catch (e) {
+        console.warn('duplicate check failed', e);
+    }
+    
+    // ユーザーメッセージを表示
+    addMessage(message, 'user');
+    input.value = '';
+    
+    // localStorage に会話履歴を保存
+    saveConversationToLocalStorage(message, 'user');
+    
+    // APIに送信
+    sendMessageToAPI(message);
+}
+
+function addMessage(content, type, useTypingEffect = false) {
+    const messagesContainer = document.getElementById('chatMessages');
+    // 直前のメッセージと重複している場合は追加しない
+    try {
+        const recent = Array.from(messagesContainer.querySelectorAll('.message')).filter(m => !m.classList.contains('user-input-area')).pop();
+        if (recent) {
+            const recentContent = recent.querySelector('.message-content')?.textContent?.trim();
+            const recentIsUser = recent.classList.contains('user-message');
+            const isUser = (type === 'user');
+            if (recentContent === content.trim() && recentIsUser === isUser) {
+                console.log('Duplicate message suppressed:', content);
+                return recent;
+            }
+        }
+    } catch (e) {
+        console.warn('dup check failed', e);
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${type}-message`;
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    const avatarDiv = document.createElement('div');
+    avatarDiv.className = 'message-avatar';
+    
+    messageDiv.appendChild(avatarDiv);
+    messageDiv.appendChild(contentDiv);
+    
+    // 入力エリアを取得
+    const inputArea = document.querySelector('.user-input-area');
+    
+    // メッセージを追加
+    if (inputArea) {
+        // 入力エリアの前に追加（入力エリアが最後に来るように）
+        messagesContainer.insertBefore(messageDiv, inputArea);
+    } else {
+        messagesContainer.appendChild(messageDiv);
+    }
+    
+    // タイピングエフェクトを使用する場合（AI応答のみ）
+    if (useTypingEffect && type === 'ai') {
+        typeMessage(contentDiv, content, messagesContainer);
+    } else {
+        contentDiv.innerHTML = content;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        ensureInputVisible();
+    }
+    
+    return messageDiv; // 作成されたメッセージ要素を返す
+}
+
+// 入力欄が常に見えるようにスクロールを調整する
+function ensureInputVisible() {
+    try {
+        const messagesContainer = document.getElementById('chatMessages');
+        const inputArea = document.querySelector('.user-input-area');
+        if (!messagesContainer || !inputArea) return;
+
+        // スクロールを一番下に持ってくる
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // 追加で数ピクセル余裕を持たせる（キーボード表示等の変化に対応）
+        const extra = 8;
+        messagesContainer.scrollTop = Math.max(0, messagesContainer.scrollHeight - messagesContainer.clientHeight + extra);
+    } catch (e) {
+        console.error('ensureInputVisible error', e);
+    }
+}
+
+// タイピングエフェクト関数
+function typeMessage(element, text, container) {
+    let index = 0;
+    const speed = 30; // ミリ秒単位（数値が小さいほど速い）
+    
+    // カーソルを追加
+    const cursor = document.createElement('span');
+    cursor.className = 'typing-cursor';
+    cursor.textContent = '▌';
+    element.appendChild(cursor);
+    
+    function typeChar() {
+        if (index < text.length) {
+            // カーソルの前にテキストを追加
+            const textNode = document.createTextNode(text.charAt(index));
+            element.insertBefore(textNode, cursor);
+            index++;
+            
+            // 自動スクロール
+            container.scrollTop = container.scrollHeight;
+            
+            setTimeout(typeChar, speed);
+        } else {
+            // タイピング完了後、カーソルを削除
+            cursor.remove();
+        }
+    }
+    
+    typeChar();
+}
+
+function addRetryButton() {
+    const messagesContainer = document.getElementById('chatMessages');
+    const retryDiv = document.createElement('div');
+    retryDiv.className = 'message ai-message retry-message';
+    retryDiv.innerHTML = `
+        <div class="message-avatar"></div>
+        <div class="message-content">
+            <button class="btn btn-outline-primary btn-sm" onclick="retryLastMessage()">
+                <i class="fas fa-redo me-2"></i>再試行
+            </button>
+        </div>
+    `;
+    
+    // 入力エリアを取得
+    const inputArea = document.querySelector('.user-input-area');
+    
+    if (inputArea) {
+        // 入力エリアの前に追加
+        messagesContainer.insertBefore(retryDiv, inputArea);
+    } else {
+        messagesContainer.appendChild(retryDiv);
+    }
+    
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function retryLastMessage() {
+    // 再試行ボタンを削除
+    const retryMessages = document.querySelectorAll('.retry-message');
+    retryMessages.forEach(msg => msg.remove());
+    
+    // 最後のユーザーメッセージを再送信
+    const userMessages = document.querySelectorAll('.user-message .message-content');
+    if (userMessages.length > 0) {
+        const lastMessage = userMessages[userMessages.length - 1].textContent;
+        // 直接APIを呼び出す
+        sendMessageToAPI(lastMessage);
+    }
+}
+
+function sendMessageToAPI(message) {
+    console.log('【DEBUG】sendMessageToAPI 呼び出し, メッセージ:', message);
+    
+    // 読み込み中のメッセージを表示
+    const loadingMessage = addMessage('考え中...', 'ai');
+    loadingMessage.classList.add('loading-message');
+    
+    // APIリクエストデータ
+    const requestData = { 
+        message: message
+    };
+    
+    console.log('【DEBUG】リクエストデータ:', requestData);
+    
+    // AIの応答を取得
+    fetch('/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('【DEBUG】レスポンス受信:', response.status, response.statusText);
+        
+        // 読み込み中メッセージを削除
+        const loadingMessages = document.querySelectorAll('.loading-message');
+        loadingMessages.forEach(msg => msg.remove());
+        
+        if (!response.ok) {
+            throw new Error(`HTTPエラー: ${response.status} ${response.statusText}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('【DEBUG】JSONレスポンス:', data);
+        
+        if (data.error) {
+            console.error('【DEBUG】エラーレスポンス:', data.error);
+            addMessage('⚠️ ' + data.error, 'ai', false);
+            addRetryButton();
+        } else {
+            console.log('【DEBUG】AI返答を表示:', data.response);
+            addMessage(data.response, 'ai', true); // タイピングエフェクト有効
+            // localStorage に AI 応答も保存
+            saveConversationToLocalStorage(data.response, 'assistant');
+            conversationCount++;
+            
+            // ユーザーメッセージ数をカウント（往復数 * 2 でメッセージ総数を算出）
+            const totalMessages = conversationCount * 2;
+            
+            // 会話中に自動でまとめボタンを表示しない（学習者が手動でまとめるため）
+            // 以前は会話数やAIレスポンスで自動表示していたが、ユーザーの要望により無効化
+            
+            // デジタル学習ツインのインサイトを表示（開発時のみ）
+            if (data.twin_insights && window.location.hostname === 'localhost') {
+                console.log('学習ツイン分析:', data.twin_insights);
+                displayTwinInsights(data.twin_insights);
+            }
+            
+            // 会話データをサーバーに同期（定期的に自動保存）
+            syncSessionData('prediction');
+        }
+    })
+    .catch(error => {
+        // 読み込み中メッセージを削除
+        const loadingMessages = document.querySelectorAll('.loading-message');
+        loadingMessages.forEach(msg => msg.remove());
+        
+        console.error('【DEBUG】エラーキャッチ:', error);
+        console.error('通信エラー詳細:', error);
+        addMessage('⚠️ 通信エラーが発生しました: ' + error.message, 'ai', false);
+        addRetryButton();
+        
+        // API接続テストを実行
+        testApiConnection();
+    });
+}
+
+// セッションデータをサーバーに同期（GCS/ローカル保存）
+function syncSessionData(stage) {
+    try {
+        const chatMessages = getChatMessages();
+        const studentId = `${classNumber}_${studentNumber}`;
+        const summaryContent = document.getElementById('summaryContent')?.innerHTML || '';
+        
+        const syncData = {
+            student_id: studentId,
+            unit: unit,
+            stage: stage,
+            chat_messages: chatMessages,
+            summary_content: summaryContent
+        };
+        
+        fetch('/api/sync-session', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(syncData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('[SYNC] セッションを同期しました:', data.message);
+            } else {
+                console.warn('[SYNC] 同期エラー:', data.error);
+            }
+        })
+        .catch(error => {
+            console.warn('[SYNC] 同期失敗:', error);
+        });
+    } catch (error) {
+        console.warn('[SYNC] セッション同期エラー:', error);
+    }
+}
+
+// チャットメッセージを配列形式で取得
+function getChatMessages() {
+    const messages = [];
+    const messageElements = document.querySelectorAll('#chatMessages .message');
+    
+    messageElements.forEach(element => {
+        const isUser = element.classList.contains('user-message');
+        const isAi = element.classList.contains('ai-message');
+        const contentDiv = element.querySelector('.message-content');
+        
+        if (contentDiv && (isUser || isAi)) {
+            messages.push({
+                role: isUser ? 'user' : 'assistant',
+                content: contentDiv.textContent
+            });
+        }
+    });
+    
+    return messages;
+}
+
+function renderPredictionSummary(summaryText) {
+    if (!summaryText) return false;
+    
+    const summaryContent = document.getElementById('summaryContent');
+    if (summaryContent) {
+        summaryContent.innerHTML = summaryText.replace(/\n/g, '<br>');
+        console.log('【DEBUG】summaryContent に要約を設定しました (prediction)');
+    }
+    
+    const summarySection = document.getElementById('summarySection');
+    if (summarySection) {
+        summarySection.style.display = 'block';
+        // サマリーが隠れないようにスクロール
+        summarySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    
+    const summaryButton = document.getElementById('summaryButton');
+    if (summaryButton) {
+        summaryButton.style.display = 'none';
+        summaryButton.disabled = true;
+    }
+    
+    const secondarySummaryBtn = document.getElementById('predictionSummaryBtn');
+    if (secondarySummaryBtn) {
+        secondarySummaryBtn.style.display = 'none';
+        secondarySummaryBtn.disabled = true;
+    }
+    
+    return true;
+}
+
+function pollSummaryJob(jobId) {
+    console.log('【DEBUG】ジョブポーリング開始:', jobId);
+    
+    const pollInterval = setInterval(() => {
+        fetch(`/job_status/${jobId}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('【DEBUG】ジョブステータス:', data.status);
+                
+                if (data.status === 'finished' && data.result) {
+                    clearInterval(pollInterval);
+                    console.log('【DEBUG】要約を表示します:', data.result);
+                    
+                    // 要約を表示
+                    session['prediction_summary'] = data.result;
+                    predictionStatus.prediction_summary_created = true;
+                    predictionStatus.predictionSummary = data.result;
+                    renderPredictionSummary(data.result);
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    console.error('【DEBUG】ジョブ失敗:', data.error);
+                    alert('予想をまとめることができませんでした。\nもう一度やってみてください。');
+                    document.getElementById('summaryButton').disabled = false;
+                }
+            })
+            .catch(error => {
+                clearInterval(pollInterval);
+                console.error('【DEBUG】ポーリングエラー:', error);
+                alert('予想をまとめることができませんでした。\nもう一度やってみてください。');
+                document.getElementById('summaryButton').disabled = false;
+            });
+    }, 2000); // 2秒ごとにポーリング
+}
+
+function getSummary() {
+    console.log('【DEBUG】getSummary 呼び出し');
+    
+    const summaryButton = document.getElementById('summaryButton');
+    
+    // ボタンが既に無効な場合は二重実行を防止
+    if (summaryButton.disabled) {
+        console.log('【DEBUG】既にボタンが無効です。二重実行を防止します。');
+        return;
+    }
+    
+    // 既に要約が表示されている場合は確認を取る
+    console.log('【DEBUG】ボタン表示状態:', summaryButton.style.display);
+    if (summaryButton.style.display === 'none') {
+        console.log('【DEBUG】ボタンが非表示なので確認ダイアログを表示します');
+        const confirmed = confirm('もう一度やり直しますか？\n\n前の予想は保存されます。\n\nいいですか？');
+        if (!confirmed) {
+            return;
+        }
+        // 確認後、新しい会話セッションを開始するためにページをリロード
+        // resume=false で新規セッションを開始
+        const urlParams = new URLSearchParams(window.location.search);
+        const classNum = urlParams.get('class');
+        const studentNum = urlParams.get('number');
+        const unit = urlParams.get('unit');
+        window.location.href = `/prediction?class=${classNum}&number=${studentNum}&unit=${unit}&resume=false`;
+        return;
+    }
+    
+    // ボタンを無効化
+    summaryButton.disabled = true;
+    
+    fetch('/summary', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        console.log('【DEBUG】/summary レスポンス受信:', response.status);
+        return response.json().then(data => {
+            if (!response.ok) {
+                // エラーレスポンス（400など）
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return data;
+        });
+    })
+    .then(data => {
+        console.log('【DEBUG】要約データ:', data);
+        if (data.error) {
+            alert('まとめられません：' + data.error);
+            document.getElementById('summaryButton').disabled = false;
+            return;
+        }
+        
+        // ジョブIDが返された場合はポーリング
+        if (data.job_id) {
+            console.log('【DEBUG】ジョブID:', data.job_id, 'ステータス:', data.status);
+            pollSummaryJob(data.job_id);
+            return;
+        }
+        
+        console.log('【DEBUG】要約を表示します:', data.summary);
+        
+        // 要約はチャット内に追加せず、上部のサマリー領域 (`summarySection`) にのみ表示する
+        session['prediction_summary'] = data.summary;
+        predictionStatus.prediction_summary_created = true;
+        predictionStatus.predictionSummary = data.summary;
+        renderPredictionSummary(data.summary);
+    })
+    .catch(error => {
+        console.error('【DEBUG】Summary Error:', error);
+        // ユーザーに警告を表示
+        alert('予想をまとめることができませんでした。\nもう一度やってみてください。');
+        document.getElementById('summaryButton').disabled = false;
+    });
+}
+
+// 単元選択に戻る
+function goBackToUnitSelection() {
+    // まとめボタンが表示されていたら（まとめていなかったら）警告
+    const summaryButton = document.getElementById('summaryButton');
+    if (summaryButton && summaryButton.style.display !== 'none') {
+        const confirmed = confirm('予想をまとめていません。\n\n戻ると、もう一度やり直さなければなりません。\n\nいいですか？');
+        if (!confirmed) {
+            return; // キャンセルされたら戻らない
+        }
+    }
+    window.location.href = `/select_unit?class=${classNumber}&number=${studentNumber}`;
+}
+
+// 入力モード切り替え
+function switchInputMode() {
+    const mode = document.querySelector('input[name="inputMode"]:checked').id;
+    const toggleSwitch = document.getElementById('toggleInputAssist');
+    
+    const touchKeyboard = document.getElementById('touchKeyboard');
+    const keyboardArea = document.getElementById('keyboardArea');
+    
+    if (mode === 'modeKeyboard') {
+        // キーボードモードでは50音表を非表示
+        keyboardArea.style.display = 'none';
+        toggleSwitch.checked = false;
+    } else if (mode === 'mode50on') {
+        // 50音表モード
+        touchKeyboard.style.display = 'block';
+        keyboardArea.style.display = 'block';
+        toggleSwitch.checked = true;
+    }
+}
+
+// 復帰時に過去の会話を復元する関数
+// 復帰時に予想のまとめを復元する関数
+function restorePredictionSummary() {
+    console.log('restorePredictionSummary: 予想のまとめを復元中...');
+    
+    const sessionSummary = predictionStatus && predictionStatus.predictionSummary;
+    if (sessionSummary && renderPredictionSummary(sessionSummary)) {
+        console.log('【DEBUG】セッション保存の要約を表示しました');
+        return;
+    }
+    
+    fetch('/get_prediction_summary')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.summary) {
+                renderPredictionSummary(data.summary);
+                predictionStatus.predictionSummary = data.summary;
+                predictionStatus.prediction_summary_created = true;
+                console.log('【DEBUG】サーバーから要約を復元しました');
+            } else {
+                console.log('【DEBUG】復元する要約がありません');
+            }
+        })
+        .catch(error => {
+            console.warn('【DEBUG】要約復元に失敗しました:', error);
+        });
+}
+
+// エラー報告関数
+function reportError(errorMessage, errorType = 'client_error', additionalInfo = {}) {
+    const stage = '{{ session.get("current_stage", "prediction") }}';
+    const unit = '{{ session.get("unit", "") }}';
+    
+    console.error(`[ERROR REPORT] ${errorType}: ${errorMessage}`);
+    
+    fetch('/report_error', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            error_message: errorMessage,
+            error_type: errorType,
+            stage: stage,
+            unit: unit,
+            additional_info: additionalInfo
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('[ERROR REPORT] Success:', data);
+    })
+    .catch(error => {
+        console.error('[ERROR REPORT] Failed:', error);
+    });
+}
+
+// グローバルエラーハンドラ
+window.addEventListener('error', (event) => {
+    const errorMessage = event.message || 'Unknown error';
+    const errorSource = event.filename || 'unknown';
+    const errorLine = event.lineno || 'unknown';
+    
+    reportError(`${errorMessage} (${errorSource}:${errorLine})`, 'javascript_error', {
+        filename: errorSource,
+        lineno: errorLine,
+        colno: event.colno
+    });
+});
+
+// Promise エラーハンドラ
+window.addEventListener('unhandledrejection', (event) => {
+    const errorMessage = event.reason ? String(event.reason) : 'Unknown promise rejection';
+    reportError(errorMessage, 'promise_error', {
+        reason: event.reason
+    });
+});
+
+</script>
+{% endblock %}

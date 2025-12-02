@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+
+{% block title %}教員ログイン{% endblock %}
+
+{% block content %}
+<div class="teacher-login">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6 col-lg-4">
+                <div class="login-card">
+                    <div class="login-header text-center mb-4">
+                        <i class="fas fa-chalkboard-teacher fa-3x text-primary mb-3"></i>
+                        <h3>教員ログイン</h3>
+                        <p class="text-muted">教員用システムへのアクセス</p>
+                    </div>
+                    
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" title="アラートを閉じる"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+                    
+                    <form method="POST" class="login-form">
+                        <div class="mb-3">
+                            <label for="teacher_id" class="form-label">
+                                <i class="fas fa-user me-2"></i>教員ID
+                            </label>
+                            <input type="text" 
+                                   class="form-control glass-input" 
+                                   id="teacher_id" 
+                                   name="teacher_id" 
+                                   placeholder="教員IDを入力" 
+                                   autocomplete="username"
+                                   required>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="password" class="form-label">
+                                <i class="fas fa-lock me-2"></i>パスワード
+                            </label>
+                            <input type="password" 
+                                   class="form-control glass-input" 
+                                   id="password" 
+                                   name="password" 
+                                   placeholder="パスワードを入力" 
+                                   autocomplete="current-password"
+                                   required>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary glass-button w-100 mb-3">
+                            <i class="fas fa-sign-in-alt me-2"></i>
+                            ログイン
+                        </button>
+                    </form>
+                    
+                    <div class="text-center mt-4">
+                        <a href="/" class="btn btn-outline-secondary glass-button-outline">
+                            <i class="fas fa-home me-2"></i>
+                            学習システムに戻る
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// エンターキーでフォーム送信
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('.login-form');
+    const inputs = form.querySelectorAll('input');
+    
+    inputs.forEach(input => {
+        input.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                form.submit();
+            }
+        });
+    });
+});
+</script>
+{% endblock %}
+
+{% block styles %}
+<style>
+/* ガラス風入力フィールド */
+.glass-input {
+    background: rgba(255, 255, 255, 0.1) !important;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.2) !important;
+    color: #2d3748 !important;
+    transition: all 0.3s ease;
+}
+
+.glass-input:focus {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-color: rgba(66, 153, 225, 0.5) !important;
+    box-shadow: 0 0 20px rgba(66, 153, 225, 0.2) !important;
+    outline: none;
+}
+
+.glass-input::placeholder {
+    color: rgba(45, 55, 72, 0.5);
+}
+
+.input-helper-text {
+    margin-top: 8px;
+}
+
+.input-helper-text small {
+    color: #718096;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.input-helper-text small::before {
+    content: '💡';
+}
+
+/* ガラス風ボタン */
+.glass-button {
+    background: rgba(66, 153, 225, 0.2) !important;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(66, 153, 225, 0.4) !important;
+    color: white !important;
+    font-weight: 600;
+    padding: 14px 30px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.glass-button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.6s, height 0.6s;
+}
+
+.glass-button:hover::before {
+    width: 400px;
+    height: 400px;
+}
+
+.glass-button:hover {
+    background: rgba(66, 153, 225, 0.3) !important;
+    border-color: rgba(66, 153, 225, 0.6) !important;
+    box-shadow: 0 8px 25px rgba(66, 153, 225, 0.3);
+    transform: translateY(-2px);
+}
+
+.glass-button:active {
+    transform: translateY(0);
+}
+
+.glass-button-outline {
+    background: rgba(255, 255, 255, 0.1) !important;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(108, 117, 125, 0.3) !important;
+    color: #6c757d !important;
+    font-weight: 600;
+    padding: 10px 20px;
+    transition: all 0.3s ease;
+}
+
+.glass-button-outline:hover {
+    background: rgba(108, 117, 125, 0.2) !important;
+    border-color: rgba(108, 117, 125, 0.5) !important;
+    color: #495057 !important;
+    box-shadow: 0 4px 15px rgba(108, 117, 125, 0.2);
+    transform: translateY(-2px);
+}
+
+.account-info {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+}
+
+.info-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    color: #495057;
+    font-size: 0.9rem;
+}
+
+.account-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.account-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    font-size: 0.85rem;
+}
+
+.account-id {
+    font-family: monospace;
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.account-role {
+    color: #6c757d;
+    font-size: 0.8rem;
+}
+
+.info-note {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #856404;
+    background: #fff3cd;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ffeaa7;
+}
+
+.info-note i {
+    color: #ffc107;
+}
+</style>
+{% endblock %}

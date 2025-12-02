@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}ScienceBuddy - ホーム{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="hero-background">
+        <div class="floating-icon icon-1"><i class="fas fa-atom"></i></div>
+        <div class="floating-icon icon-2"><i class="fas fa-dna"></i></div>
+        <div class="floating-icon icon-3"><i class="fas fa-flask"></i></div>
+        <div class="floating-icon icon-4"><i class="fas fa-microscope"></i></div>
+        <div class="floating-icon icon-5"><i class="fas fa-leaf"></i></div>
+    </div>
+    <div class="hero-content">
+        <div class="hero-card text-center">
+            <h1 class="hero-title">
+                <span>ScienceBuddy</span>
+            </h1>
+            <div class="hero-buttons mt-5">
+                <a href="/select_class" class="btn btn-primary btn-lg btn-start">
+                    <span class="btn-icon"><i class="fas fa-rocket"></i></span>
+                    <span class="btn-text">学習を始める</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}出席番号選択{% endblock %}
+
+{% block content %}
+<div class="selection-page">
+    <div class="container">
+        <div class="text-center mb-4">
+            <div class="class-info-banner mb-3">
+                <span class="class-badge" id="classDisplayText">４年<span id="selectedClass"></span>組</span>
+            </div>
+            <h2 class="mb-3">
+                <i class="fas fa-user-graduate text-primary"></i>
+                出席番号を選択してください
+            </h2>
+            <p class="text-muted">あなたの出席番号をクリックしてください</p>
+        </div>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="row g-3" id="numberCards">
+                    <!-- 1-30番のカードを生成 -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5">
+            <a href="/select_class" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left me-2"></i>クラス選択に戻る
+            </a>
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="fas fa-home me-2"></i>最初に戻る
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // URLからクラス番号を取得
+    const urlParams = new URLSearchParams(window.location.search);
+    let classNumber = urlParams.get('class') || '1';
+    
+    // Jinja2から渡されたclass_numberを優先
+    const jinja2Class = '{{ class_number }}';
+    if (jinja2Class && jinja2Class !== 'None' && jinja2Class !== '') {
+        classNumber = jinja2Class;
+    }
+    
+    // クラス番号を表示（5組も通常クラスと同様に扱う）
+    const classDisplayText = document.getElementById('classDisplayText');
+    classDisplayText.innerHTML = `４年${classNumber}組`;
+    
+    // 1-30番のカードを生成
+    const numberCards = document.getElementById('numberCards');
+    
+    if (!numberCards) {
+        return;
+    }
+    
+    for (let i = 1; i <= 30; i++) {
+        const col = document.createElement('div');
+        col.className = 'col-lg-2 col-md-3 col-4';
+        
+        const card = document.createElement('div');
+        card.className = 'number-card';
+        card.innerHTML = `
+            <div class="number-display">${i}</div>
+            <div class="number-label">番</div>
+        `;
+        card.style.cursor = 'pointer';
+        card.onclick = function(event) {
+            selectNumber(i, event);
+        };
+        
+        col.appendChild(card);
+        numberCards.appendChild(col);
+    }
+    
+    window.selectNumber = function(number, event) {
+        // 選択されたカードにアクティブクラスを追加
+        document.querySelectorAll('.number-card').forEach(card => {
+            card.classList.remove('active');
+        });
+        
+        const targetCard = event.target.closest('.number-card');
+        if (targetCard) {
+            targetCard.classList.add('active');
+        }
+        
+        // 少し待ってから次のページに移動（クラス情報も含める）
+        setTimeout(() => {
+            const url = `/select_unit?class=${classNumber}&number=${number}`;
+            window.location.href = url;
+        }, 300);
+    };
+});
+</script>
+{% endblock %}

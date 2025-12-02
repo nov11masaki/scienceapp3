@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}クラス選択{% endblock %}
+
+{% block content %}
+<div class="selection-page">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2 class="mb-3">
+                <i class="fas fa-users text-primary"></i>
+                クラスを選択してください
+            </h2>
+            <p class="text-muted">あなたのクラスをクリックしてください</p>
+        </div>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="row g-4" id="classCards">
+                    <!-- 1-4組のカードを生成 -->
+                    <div class="col-lg-6 col-md-6">
+                        <div class="class-card" onclick="selectClass(1)">
+                            <div class="class-number">1</div>
+                            <div class="class-label">組</div>
+                            <div class="class-description">４年１組</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 col-md-6">
+                        <div class="class-card" onclick="selectClass(2)">
+                            <div class="class-number">2</div>
+                            <div class="class-label">組</div>
+                            <div class="class-description">４年２組</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 col-md-6">
+                        <div class="class-card" onclick="selectClass(3)">
+                            <div class="class-number">3</div>
+                            <div class="class-label">組</div>
+                            <div class="class-description">４年３組</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6 col-md-6">
+                        <div class="class-card" onclick="selectClass(4)">
+                            <div class="class-number">4</div>
+                            <div class="class-label">組</div>
+                            <div class="class-description">４年４組</div>
+                        </div>
+                    </div>
+                    <!-- 5組（研究室）カード -->
+                    <div class="col-lg-6 col-md-6">
+                        <div class="class-card" onclick="selectClass('5')">
+                            <div class="class-number">5</div>
+                            <div class="class-label">組</div>
+                            <div class="class-description">5組（研究室）</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5">
+            <a href="/" class="btn btn-outline-secondary btn-lg">
+                <i class="fas fa-arrow-left me-2"></i>戻る
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function selectClass(classNumber) {
+    // 選択されたカードにアクティブクラスを追加
+    document.querySelectorAll('.class-card').forEach(card => {
+        card.classList.remove('active');
+    });
+    event.target.closest('.class-card').classList.add('active');
+    
+    // 5組（研究室）はパスワードが必要
+    if (String(classNumber) === '5') {
+        const input = prompt('5組（研究室）に入るにはパスワードが必要です。\nパスワードを入力してください:');
+        if (!input) {
+            alert('パスワードが入力されませんでした。');
+            return;
+        }
+        if (input !== 'RIKA') {
+            alert('パスワードが違います。');
+            return;
+        }
+        setTimeout(() => {
+            window.location.href = `/select_number?class=${classNumber}&pass=RIKA`;
+        }, 300);
+        return;
+    }
+
+    // 少し待ってから次のページに移動（通常のクラス）
+    setTimeout(() => {
+        window.location.href = `/select_number?class=${classNumber}`;
+    }, 300);
+}
+</script>
+{% endblock %}

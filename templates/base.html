@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}理科学習支援システム{% endblock %}</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='image.png') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        {% block content %}{% endblock %}
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 隠しコマンド: 生徒用ページで"RIKA"と入力すると教員ページに遷移 -->
+    <script>
+    // 教員ページ以外で動作
+    if (!window.location.pathname.startsWith('/teacher/')) {
+        (function() {
+            let keyBuffer = '';
+            let resetTimeout;
+            const secretCode = 'RIKA';
+            
+            document.addEventListener('keydown', function(e) {
+                // 入力フィールドにフォーカスがある場合はスキップ
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+                
+                // タイムアウトをクリア
+                clearTimeout(resetTimeout);
+                
+                // 入力された文字を追加（大文字に変換）
+                if (e.key.length === 1) {
+                    keyBuffer += e.key.toUpperCase();
+                    
+                    // バッファが長すぎる場合は最後の4文字のみ保持
+                    if (keyBuffer.length > secretCode.length) {
+                        keyBuffer = keyBuffer.slice(-secretCode.length);
+                    }
+                    
+                    // 秘密コードと一致したら教員ページに遷移
+                    if (keyBuffer === secretCode) {
+                        // フィードバック音（オプション）
+                        try {
+                            if (window.AudioContext || window.webkitAudioContext) {
+                                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                                const oscillator = audioContext.createOscillator();
+                                const gainNode = audioContext.createGain();
+                                oscillator.connect(gainNode);
+                                gainNode.connect(audioContext.destination);
+                                oscillator.frequency.value = 800;
+                                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                                oscillator.start(audioContext.currentTime);
+                                oscillator.stop(audioContext.currentTime + 0.3);
+                            }
+                        } catch (e) {
+                            // 音声再生エラーは無視
+                        }
+                        
+                        // 少し遅延してから遷移（フィードバックを感じさせる）
+                        setTimeout(function() {
+                            window.location.href = '/teacher/login';
+                        }, 300);
+                        
+                        // バッファをリセット
+                        keyBuffer = '';
+                    }
+                }
+                
+                // 2秒後にバッファをリセット
+                resetTimeout = setTimeout(function() {
+                    keyBuffer = '';
+                }, 2000);
+            });
+        })();
+    }
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

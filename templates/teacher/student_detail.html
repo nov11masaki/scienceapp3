@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}学生詳細ログ - {{ student_display }}{% endblock %}
+
+{% block content %}
+<div class="teacher-student-detail">
+    <div class="container">
+        <div class="student-header mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="mb-0">
+                    <i class="fas fa-user text-primary"></i>
+                    児童詳細ログ - {{ student_display }}
+                </h2>
+                <div class="header-actions">
+                    <a href="/teacher/logs" class="btn btn-outline-secondary btn-sm me-2">
+                        <i class="fas fa-arrow-left me-1"></i>ログ一覧に戻る
+                    </a>
+                    <span class="badge bg-success me-2">{{ teacher_id }}</span>
+                    <a href="/teacher/logout" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-sign-out-alt me-1"></i>ログアウト
+                    </a>
+                </div>
+            </div>
+            
+            <!-- フィルター -->
+            <div class="filters-section mb-4">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="dateFilter">日付</label>
+                        <select class="form-select" id="dateFilter" onchange="applyFilters()">
+                            {% for date_info in available_dates %}
+                            <option value="{{ date_info.raw }}" {% if current_date == date_info.raw %}selected{% endif %}>
+                                {{ date_info.formatted }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="unitFilter">単元</label>
+                        <select class="form-select" id="unitFilter" onchange="applyFilters()">
+                            <option value="">すべての単元</option>
+                            {% for unit_name in units_data.keys() %}
+                            <option value="{{ unit_name }}" {% if current_unit == unit_name %}selected{% endif %}>
+                                {{ unit_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 学習データがない場合 -->
+        {% if not units_data %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            この児童の学習データがありません。
+        </div>
+        {% else %}
+
+        <!-- ログ表示エリア -->
+        <div class="logs-container">
+            {% if logs %}
+                {% set log_groups = {} %}
+                {% for log in logs %}
+                    {% set unit_name = log.unit or '単元未設定' %}
+                    {% if unit_name not in log_groups %}
+                        {% set _ = log_groups.update({unit_name: {'prediction_chats': [], 'reflection_chats': [], 'prediction_summary': None, 'final_summary': None}}) %}
+                    {% endif %}
+                    {% if log.log_type == 'prediction_chat' %}
+                        {% set _ = log_groups[unit_name]['prediction_chats'].append(log) %}
+                    {% elif log.log_type == 'reflection_chat' %}
+                        {% set _ = log_groups[unit_name]['reflection_chats'].append(log) %}
+                    {% elif log.log_type == 'prediction_summary' %}
+                        {% set _ = log_groups[unit_name].update({'prediction_summary': log}) %}
+                    {% elif log.log_type == 'final_summary' %}
+                        {% set _ = log_groups[unit_name].update({'final_summary': log}) %}
+                    {% endif %}
+                {% endfor %}
+
+                {% for unit_name, unit_data in log_groups.items() %}
+                <div class="unit-section mb-4">
+                    <div class="unit-header">
+                        <h4 class="unit-title">
+                            <i class="fas fa-book text-success me-2"></i>
+                            {{ unit_name }}
+                        </h4>
+                        <div class="unit-stats">
+                            <span class="badge bg-primary me-2">
+                                予想対話: {{ unit_data.prediction_chats|length }}回
+                            </span>
+                            <span class="badge bg-info me-2">
+                                振り返り対話: {{ unit_data.reflection_chats|length }}回
+                            </span>
+                            {% if unit_data.prediction_summary %}
+                            <span class="badge bg-success me-2">予想まとめ完了</span>
+                            {% endif %}
+                            {% if unit_data.final_summary %}
+                            <span class="badge bg-warning">最終まとめ完了</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- 予想まとめ -->
+                    {% if unit_data.prediction_summary %}
+                    <div class="summary-card mb-3">
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-lightbulb me-2"></i>
+                                    予想まとめ
+                                </h6>
+                                <small>{{ unit_data.prediction_summary.timestamp }}</small>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">{{ unit_data.prediction_summary.data.summary }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 最終まとめ -->
+                    {% if unit_data.final_summary %}
+                    <div class="summary-card mb-3">
+                        <div class="card">
+                            <div class="card-header bg-warning text-dark">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-check-circle me-2"></i>
+                                    最終まとめ
+                                </h6>
+                                <small>{{ unit_data.final_summary.timestamp }}</small>
+                            </div>
+                            <div class="card-body">
+                                <p class="card-text">{{ unit_data.final_summary.data.final_summary }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 予想対話 -->
+                    {% if unit_data.prediction_chats %}
+                    <div class="chat-section mb-3">
+                        <h6 class="section-title">
+                            <i class="fas fa-comments text-primary"></i>
+                            予想対話履歴（{{ unit_data.prediction_chats|length }}件）
+                        </h6>
+                        <div class="chat-section-content">
+                            {% for chat in unit_data.prediction_chats %}
+                            <div class="chat-item mb-2">
+                                <div class="chat-timestamp">{{ chat.timestamp }}</div>
+                                <div class="chat-content">
+                                    <div class="user-message">
+                                        <strong>学生:</strong>
+                                        <p>{{ chat.data.user_message }}</p>
+                                    </div>
+                                    <div class="ai-message">
+                                        <strong>AI:</strong>
+                                        <p>{{ chat.data.ai_response }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- 振り返り対話 -->
+                    {% if unit_data.reflection_chats %}
+                    <div class="chat-section mb-3">
+                        <h6 class="section-title">
+                            <i class="fas fa-comments text-info"></i>
+                            振り返り対話履歴（{{ unit_data.reflection_chats|length }}件）
+                        </h6>
+                        <div class="chat-section-content">
+                            {% for chat in unit_data.reflection_chats %}
+                            <div class="chat-item mb-2">
+                                <div class="chat-timestamp">{{ chat.timestamp }}</div>
+                                <div class="chat-content">
+                                    <div class="user-message">
+                                        <strong>学生:</strong>
+                                        <p>{{ chat.data.user_message }}</p>
+                                    </div>
+                                    <div class="ai-message">
+                                        <strong>AI:</strong>
+                                        <p>{{ chat.data.ai_response }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            {% else %}
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                この学生のログが見つかりません。
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function applyFilters() {
+    const date = document.getElementById('dateFilter').value;
+    const unit = document.getElementById('unitFilter').value;
+    
+    const params = new URLSearchParams();
+    if (date) params.append('date', date);
+    if (unit) params.append('unit', unit);
+    
+    window.location.href = `/teacher/student_detail?class={{ class_num }}&seat={{ seat_num }}&${params.toString()}`;
+}
+</script>
+
+<style>
+.teacher-student-detail {
+    padding: 20px 0;
+}
+
+.logs-container {
+    border: 2px solid #c6d4e4;
+    border-radius: 12px;
+    padding: 16px;
+    background: #f8fbff;
+    box-shadow: 0 8px 20px rgba(15, 53, 88, 0.08);
+}
+
+.unit-section {
+    border: 1.6px solid #c6d4e4;
+    border-radius: 12px;
+    padding: 20px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(15, 53, 88, 0.06);
+}
+
+.unit-header {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.unit-title {
+    margin: 0;
+    color: #495057;
+}
+
+.unit-stats .badge {
+    font-size: 0.85em;
+}
+
+.summary-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-section {
+    background: white;
+    border-radius: 6px;
+    border-left: 4px solid #007bff;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    max-height: 800px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chat-section .section-title {
+    position: sticky;
+    top: 0;
+    background: white;
+    padding: 15px 15px 10px 15px;
+    margin: 0;
+    border-bottom: 1px solid #e9ecef;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.chat-section-content {
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 15px;
+    flex: 1;
+}
+
+/* スクロールバーのスタイリング */
+.chat-section-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+.chat-section-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.chat-section-content::-webkit-scrollbar-thumb {
+    background: #007bff;
+    border-radius: 10px;
+    transition: background 0.3s;
+}
+
+.chat-section-content::-webkit-scrollbar-thumb:hover {
+    background: #0056b3;
+    width: 12px;
+}
+
+.section-title {
+    margin-bottom: 15px;
+    color: #495057;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.chat-item {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 12px;
+    background: #ffffff;
+    margin-bottom: 15px;
+}
+
+.chat-item:last-child {
+    margin-bottom: 0;
+}
+
+.chat-timestamp {
+    font-size: 0.75em;
+    color: #6c757d;
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
+.chat-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.chat-content .user-message {
+    background: #e3f2fd;
+    padding: 10px;
+    border-radius: 4px;
+    border-left: 3px solid #2196F3;
+}
+
+.chat-content .user-message strong {
+    color: #1565c0;
+    font-size: 0.9em;
+}
+
+.chat-content .user-message p {
+    margin: 5px 0 0 0;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+.chat-content .ai-message {
+    background: #f1f8e9;
+    padding: 10px;
+    border-radius: 4px;
+    border-left: 3px solid #4CAF50;
+}
+
+.chat-content .ai-message strong {
+    color: #33691e;
+    font-size: 0.9em;
+}
+
+.chat-content .ai-message p {
+    margin: 5px 0 0 0;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+.chat-content .user-message {
+    background: #e3f2fd;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.chat-content .ai-message {
+    background: #f1f8e9;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+.filters-section {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+}
+</style>
+
+<script>
+function applyFilters() {
+    const dateFilter = document.getElementById('dateFilter').value;
+    const unitFilter = document.getElementById('unitFilter').value;
+    
+    // 現在のURLパラメータから class と seat を取得
+    const urlParams = new URLSearchParams(window.location.search);
+    const classNum = urlParams.get('class');
+    const seatNum = urlParams.get('seat');
+    
+    // 新しいURLパラメータを構築
+    const params = new URLSearchParams();
+    if (classNum) params.append('class', classNum);
+    if (seatNum) params.append('seat', seatNum);
+    if (unitFilter) params.append('unit', unitFilter);
+    if (dateFilter) params.append('date', dateFilter);
+    
+    // ページをリロードして新しいフィルターを適用
+    const newUrl = `/teacher/student_detail?${params.toString()}`;
+    window.location.href = newUrl;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('学生詳細ページ読み込み完了');
+    
+    // ログがない場合の表示調整
+    const logContainer = document.querySelector('.logs-container');
+    if (logContainer && logContainer.children.length === 0) {
+        logContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                この学生のログが見つかりません。他の日付や単元をお試しください。
+            </div>
+        `;
+    }
+});
+</script>
+{% endblock %}

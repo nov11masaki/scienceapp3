@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}学習単元選択{% endblock %}
+
+{% block content %}
+<div class="selection-page">
+    <div class="container">
+        <div class="text-center mb-4">
+            <div class="class-info-banner mb-3">
+                <span class="class-badge">４年<span id="selectedClass"></span>組 <span id="selectedNumber"></span>番</span>
+            </div>
+            <h2 class="mb-3">
+                <i class="fas fa-book text-primary"></i>
+                学習する単元を選択してください
+            </h2>
+            <p class="text-muted">今日学習したい単元をクリックしてください</p>
+        </div>
+        
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="row g-4">
+                    {% for unit in units %}
+                    <div class="col-lg-4 col-md-6">
+                        <div class="unit-card-wrapper">
+                            <div class="unit-card">
+                                <div class="unit-icon">
+                                    {% if '温度' in unit %}
+                                        <i class="fas fa-thermometer-half"></i>
+                                    {% elif 'あたたまり' in unit %}
+                                        <i class="fas fa-fire"></i>
+                                    {% elif 'ふっとう' in unit %}
+                                        <i class="fas fa-tint"></i>
+                                    {% elif '冷やした' in unit %}
+                                        <i class="fas fa-snowflake"></i>
+                                    {% else %}
+                                        <i class="fas fa-flask"></i>
+                                    {% endif %}
+                                </div>
+                                <h5 class="unit-title">{{ unit }}</h5>
+                                
+                                {% if unit_progress and unit in unit_progress %}
+                                    {% set progress = unit_progress[unit] %}
+                                    {% if progress.needs_resumption %}
+                                        <div class="progress-indicator">
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-play-circle"></i> {{ progress.progress_summary }}
+                                            </span>
+                                            <small class="text-muted d-block mt-1">前回の続きから</small>
+                                        </div>
+                                    {% elif progress.progress_summary != "未開始" %}
+                                        <div class="progress-indicator">
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check-circle"></i> {{ progress.progress_summary }}
+                                            </span>
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            
+                            <!-- 予想・考察ボタン -->
+                            <div class="btn-group w-100 mt-2" role="group">
+                                <button class="btn btn-primary btn-sm flex-fill unit-prediction-btn" 
+                                        data-unit="{{ unit }}"
+                                        onclick="goToPrediction('{{ unit }}')">
+                                    <i class="fas fa-lightbulb"></i> 予想
+                                </button>
+                                <button class="btn btn-info btn-sm flex-fill" 
+                                        id="reflection-btn-{{ loop.index }}"
+                                        data-unit="{{ unit }}"
+                                        onclick="goToReflection('{{ unit }}')">
+                                    <i class="fas fa-comments"></i> 考察
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5">
+            <a href="#" onclick="goBack()" class="btn btn-outline-secondary me-3">
+                <i class="fas fa-arrow-left me-2"></i>出席番号選択に戻る
+            </a>
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="fas fa-home me-2"></i>最初に戻る
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- 進行状況データをJSONとして埋め込み -->
+<script type="application/json" id="unit-progress-data">{{ unit_progress | tojson | safe }}</script>
+
+<script>
+// URLからクラス番号と出席番号を取得
+const urlParams = new URLSearchParams(window.location.search);
+const classNumber = urlParams.get('class') || '1';
+const studentNumber = urlParams.get('number') || '1';
+
+// クラス番号と出席番号を表示
+document.getElementById('selectedClass').textContent = classNumber;
+document.getElementById('selectedNumber').textContent = studentNumber;
+
+// 進行状況データを安全に取得
+const unitProgressElement = document.getElementById('unit-progress-data');
+const unitProgress = unitProgressElement ? JSON.parse(unitProgressElement.textContent) : {};
+
+// 5組かどうかをグローバルに判定
+const isClass5 = classNumber === '5';
+
+// 進行状況に基づいてボタンを有効/無効化
+function updateButtons() {
+    
+    // 予想ボタンの有効/無効
+    document.querySelectorAll('.unit-prediction-btn').forEach((btn) => {
+        const unit = btn.getAttribute('data-unit');
+        
+        if (isClass5) {
+            // 5組は全員すべてのユニットを利用可能
+            btn.disabled = false;
+            btn.title = '';
+        } else {
+            // 5組以外は「空気の温度と体積」のみ有効
+            if (unit === '空気の温度と体積') {
+                btn.disabled = false;
+                btn.title = '';
+            } else {
+                btn.disabled = true;
+                btn.title = '現在このユニットは利用できません';
+            }
+        }
+    });
+    
+    // 考察ボタンの有効/無効
+    document.querySelectorAll('[id^="reflection-btn-"]').forEach((btn) => {
+        const unit = btn.getAttribute('data-unit');
+        const progress = unitProgress[unit];
+        
+        if (isClass5) {
+            // 5組は考察可能（予想完了不要）
+            btn.disabled = false;
+            btn.title = '';
+        } else {
+            // 5組以外は「空気の温度と体積」のみ
+            if (unit === '空気の温度と体積') {
+                btn.disabled = false;
+                btn.title = '';
+            } else {
+                btn.disabled = true;
+                btn.title = '現在このユニットは利用できません';
+            }
+        }
+    });
+}
+
+// ページロード時に初期化
+document.addEventListener('DOMContentLoaded', updateButtons);
+
+function goToPrediction(unit) {
+    // ボタンが無効な場合は処理しない
+    if (!isClass5 && unit !== '空気の温度と体積') {
+        alert('現在このユニットは利用できません');
+        return;
+    }
+    
+    const progress = unitProgress[unit];
+    const needsResumption = progress && progress.needs_resumption;
+    const predictionSummaryCreated = progress && progress.prediction_summary_created;
+    
+    // 予想が完了している場合は警告ダイアログ
+    if (predictionSummaryCreated) {
+        const confirmRedo = confirm('予想をやり直しますか？\n\n前回の予想は記録として保存されます。\n新たに予想を立て直します。\n\nよろしいですか？');
+        
+        if (confirmRedo) {
+            window.location.href = `/prediction?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}`;
+        }
+        return;
+    }
+    
+    // 常に新規セッション開始（会話復帰機能はなし）
+    window.location.href = `/prediction?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}`;
+}
+
+function goToReflection(unit) {
+    // ボタンが無効な場合は処理しない
+    if (!isClass5 && unit !== '空気の温度と体積') {
+        alert('現在このユニットは利用できません');
+        return;
+    }
+    
+    const progress = unitProgress[unit];
+    const reflectionNeedsResumption = progress && progress.reflection_needs_resumption;
+    const reflectionSummaryCreated = progress && progress.reflection_summary_created;
+    
+    // 考察が完了している場合は警告ダイアログ
+    if (reflectionSummaryCreated) {
+        const confirmRedo = confirm('考察をやり直しますか？\n\n前回の考察は記録として保存されます。\n新たに考察を立て直します。\n\nよろしいですか？');
+        
+        if (confirmRedo) {
+            window.location.href = `/reflection?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}`;
+        }
+        return;
+    }
+    
+    // 考察ページへ
+    window.location.href = `/reflection?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}`;
+}
+
+function selectUnit(unit) {
+    // 選択されたカードにアクティブクラスを追加
+    document.querySelectorAll('.unit-card').forEach(card => {
+        card.classList.remove('active');
+    });
+    event.target.closest('.unit-card').classList.add('active');
+    
+    // 進行状況をチェック
+    const needsResumption = unitProgress[unit] && unitProgress[unit].needs_resumption;
+    const predictionSummaryCreated = unitProgress[unit] && unitProgress[unit].prediction_summary_created;
+    const reflectionStarted = unitProgress[unit] && unitProgress[unit].reflection_started;
+    const reflectionNeedsResumption = unitProgress[unit] && unitProgress[unit].reflection_needs_resumption;
+    const reflectionSummaryCreated = unitProgress[unit] && unitProgress[unit].reflection_summary_created;
+    
+    // 進捗に応じた適切なステージを決定
+    let targetStage = 'prediction';  // デフォルトは予想段階
+    let shouldResume = false;
+    
+    if (reflectionSummaryCreated) {
+        // 考察の要約まで完了している場合は完了画面へ
+        alert('この単元はすでに完了しています。');
+        return;
+    } else if (reflectionNeedsResumption && reflectionStarted) {
+        // 考察段階に中断がある場合
+        targetStage = 'reflection';
+        shouldResume = true;
+    } else if (reflectionStarted) {
+        // 考察段階を開始している場合は考察へ
+        targetStage = 'reflection';
+    } else if (predictionSummaryCreated) {
+        // 予想の要約が完了している場合は実験段階へ
+        targetStage = 'prediction';
+    } else if (needsResumption && targetStage === 'prediction') {
+        // 予想段階の復帰
+        shouldResume = true;
+    }
+    
+    // 復帰確認ダイアログを表示（予想段階または考察段階）
+    if (shouldResume) {
+        const progressSummary = unitProgress[unit] ? unitProgress[unit].progress_summary : '';
+        const confirmResume = confirm(`この単元は前回の続きがあります。\n前回の続きから始めますか？\n\n進行状況: ${progressSummary}\n\nOK: 続きから開始\nキャンセル: 最初から開始`);
+        
+        setTimeout(() => {
+            if (confirmResume) {
+                window.location.href = `/${targetStage}?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}&resume=true`;
+            } else {
+                window.location.href = `/${targetStage}?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}`;
+            }
+        }, 300);
+    } else {
+        // 通常の開始
+        setTimeout(() => {
+            window.location.href = `/${targetStage}?class=${classNumber}&number=${studentNumber}&unit=${encodeURIComponent(unit)}`;
+        }, 300);
+    }
+}
+
+function goBack() {
+    window.location.href = `/select_number?class=${classNumber}`;
+}
+</script>
+{% endblock %}
