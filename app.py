@@ -1827,43 +1827,52 @@ def report_error():
 
 @app.route('/summary', methods=['POST'])
 def summary():
-    conversation = session.get('conversation', [])
+    # セッションから安全に値を取得
+    conversation = session.get('conversation') or []
     unit = session.get('unit')
 
-    # すでに要約が作成されている場合はスキップ
+    # 既存サマリーがあれば即返す（冪等）
     if session.get('prediction_summary'):
         print(f"[SUMMARY] Already created: {session.get('prediction_summary')[:50]}...")
         return jsonify({'summary': session.get('prediction_summary')})
-    
-    # ユーザーの発言をチェック（初期メッセージを除く）
-    user_messages = [msg for msg in conversation if msg['role'] == 'user']
-    
-    # ユーザー発言が不足している場合
+
+    # 型・構造のバリデーション（KeyError回避のため安全化）
+    if not isinstance(conversation, list):
+        print(f"[SUMMARY] Invalid conversation type: {type(conversation)}")
+        conversation = []
+
+    normalized_conv = []
+    for m in conversation:
+        if isinstance(m, dict):
+            role = m.get('role')
+            content = m.get('content')
+            if role in ('user', 'assistant') and isinstance(content, str) and content.strip():
+                normalized_conv.append({'role': role, 'content': content})
+
+    # ユーザー発言を抽出（初期AIメッセージは role=assistant）
+    user_messages = [m for m in normalized_conv if m.get('role') == 'user']
+
+    if unit is None:
+        return jsonify({'error': '単元情報が見つかりません。いちど単元選択から入り直してください。'}), 400
+
     if len(user_messages) == 0:
         return jsonify({
             'error': 'まだ何も話していないようです。あなたの予想や考えを教えてください。',
             'is_insufficient': True
         }), 400
-    
-    # ユーザー発言の内容をチェック
-    user_content = ' '.join([msg['content'] for msg in user_messages])
-    
-    # 文字数による判定はやめ、意味的に有意な発言かを判定する
+
+    # 最低限の内容チェック（過剰な厳しさは避ける）
+    user_content = ' '.join([m.get('content', '') for m in user_messages])
     exchange_count = len(user_messages)
-    
-    # 非常に緩い判定：2回以上のやりとりがあれば無条件でOK
-    # 1回のみの場合も、少しでも内容があればOK
-    if exchange_count < 2:
-        # 1回のみの場合、内容が極端に空でなければOK
-        if len(user_content.strip()) < 2:
-            return jsonify({
-                'error': 'あなたの考えが伝わりきっていないようです。どういうわけでそう思ったの？何か見たことや経験があれば教えてね。',
-                'is_insufficient': True
-            }), 400
-    
-    # 単元のプロンプトを読み込み（予想段階の指示を必ず参照）
+    if exchange_count < 2 and len(user_content.strip()) < 2:
+        return jsonify({
+            'error': 'あなたの考えが伝わりきっていないようです。どういうわけでそう思ったの？何か見たことや経験があれば教えてね。',
+            'is_insufficient': True
+        }), 400
+
+    # 単元のプロンプト（予想段階）
     unit_prompt = load_unit_prompt(unit, stage='prediction')
-    
+
     summary_instruction = (
         "以下の会話内容のみをもとに、児童の話した言葉や順序を活かして予想をまとめてください。"
         "児童が自分のノートにそのまま写せる、短い1〜2文にしてください。"
@@ -1871,20 +1880,11 @@ def summary():
         "理由は児童が話した経験や具体的な様子のみを書き、結論を言い換えただけの理由（例:「体積が大きくなるのは体積がふくらむから」）は書かないでください。"
         "会話に含まれていない内容や新しい事実は追加しないでください。"
     )
-    
-    # メッセージフォーマットで構築
-    messages = [
-        {"role": "system", "content": f"{unit_prompt}\n\n【重要】{summary_instruction}"}
-    ]
-    
-    # 対話履歴をメッセージフォーマットで追加
-    for msg in conversation:
-        messages.append({
-            "role": msg['role'],
-            "content": msg['content']
-        })
-    
-    # 最後に要約を促すメッセージを追加
+
+    # メッセージフォーマットを構築
+    messages = [{"role": "system", "content": f"{unit_prompt}\n\n【重要】{summary_instruction}"}]
+    for msg in normalized_conv:
+        messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({
         "role": "user",
         "content": "これまでの話をもとに、予想をまとめてください。児童の話した順序と言葉を活かし、口語を自然な書き言葉に整えてください。会話に含まれていない内容は追加しないでください。"
@@ -1933,6 +1933,13 @@ def summary():
                 summary_response = call_openai_with_retry(messages, model_override="gpt-4o-mini", enable_cache=True, stage='prediction')
                 print(f"[SUMMARY] Step 2: Extracting message from response...")
                 summary_text = extract_message_from_json_response(summary_response)
+
+                # OpenAI 側の代表的なエラーメッセージを検出したら 503 を返す（保存しない）
+                if isinstance(summary_text, str) and (
+                    'APIキー' in summary_text or 'API利用制限' in summary_text or 'ネットワーク接続' in summary_text or '予期しないエラー' in summary_text
+                ):
+                    print(f"[SUMMARY] OpenAI error-like response detected, not saving. text={summary_text[:60]}...")
+                    return jsonify({'error': 'AI接続の混雑または通信エラーです。少し待ってもう一度押してください。'}), 503
                 print(f"[SUMMARY] Step 3: Saving to session... (length: {len(summary_text)})")
                 session['prediction_summary'] = summary_text
                 session['prediction_summary_created'] = True

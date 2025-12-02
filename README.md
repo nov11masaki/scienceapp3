@@ -4,6 +4,65 @@
 
 ---
 
+## 🚀 Windows クイックスタート
+
+### 前提条件
+- Python 3.10以上
+- OpenAI API キー
+- インターネット接続
+- **Redis**（並列処理用、推奨）
+
+### 基本起動（1人ずつ順番に処理）
+
+1. **起動スクリプトを実行**
+   ```cmd
+   quick_start.bat
+   ```
+   または、`quick_start.bat` をダブルクリック
+
+2. **ブラウザでアクセス**
+   - ローカル: `http://localhost:5014`
+
+### 並列処理対応（複数生徒が同時にまとめボタンを押せる）
+
+**推奨：30人クラスで使用する場合**
+
+1. **Redis をインストール**
+   - ダウンロード: https://github.com/tporadowski/redis/releases
+   - `redis-x64-xxx.zip` を展開
+
+2. **3つのウィンドウで起動**（すべて開いたまま）
+   
+   **ウィンドウ1: Redis サーバー**
+   ```cmd
+   START_REDIS.bat
+   ```
+   
+   **ウィンドウ2: RQ ワーカー**
+   ```cmd
+   START_WORKER.bat
+   ```
+   
+   **ウィンドウ3: アプリ本体**
+   ```cmd
+   quick_start.bat
+   ```
+
+3. **動作確認**
+   - 複数の生徒が同時に「まとめる」ボタンを押しても正常に処理されます
+   - まとめ生成中は他の生徒の操作をブロックしません
+
+### ngrok設定（外部公開する場合）
+
+別のコマンドプロンプトで:
+```cmd
+ngrok http 5014 --domain=sciencebuddy.ngrok.dev
+```
+
+外部から `https://sciencebuddy.ngrok.dev` でアクセス可能になります。
+
+---
+
 ## 📖 プロダクト概要
 
 ### 何ができるアプリか
